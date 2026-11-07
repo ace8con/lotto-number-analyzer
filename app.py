@@ -136,22 +136,52 @@ def normalize_draw(item):
 def load_draws():
     global _cache
 
-    if _cache is not None:
-        return _cache
-
     try:
+        # 매번 동행복권에서 최신 회차를 확인합니다.
         latest = get_latest_round()
 
-        # 836회부터 10회차 단위로 수집합니다.
-        centers = list(range(841, latest + 1, 10))
+        # 기존 데이터가 있고 최신 회차도 같다면
+        # API에서 과거 데이터를 다시 가져오지 않습니다.
+        if _cache is not None:
+            cached_latest = max(
+                draw["round"] for draw in _cache
+            )
 
-        # 마지막에는 1251처럼 미래 회차를 요청하지 않고,
-        # 실제 최신 회차를 기준으로 한 번 더 조회합니다.
-        if latest not in centers:
-            centers.append(latest)
+            if latest <= cached_latest:
+                return _cache
 
-        draw_map = {}
+        # 기존 데이터가 있으면 이어서 업데이트합니다.
+        if _cache is not None:
+            cached_latest = max(
+                draw["round"] for draw in _cache
+            )
 
+            draw_map = {
+                draw["round"]: draw
+                for draw in _cache
+            }
+
+            # 새 회차 주변을 조회합니다.
+            centers = list(
+                range(cached_latest + 5, latest + 1, 10)
+            )
+
+            # 최신 회차는 반드시 직접 조회합니다.
+            if latest not in centers:
+                centers.append(latest)
+
+        else:
+            # 최초 실행: 836회부터 전체 데이터를 수집합니다.
+            draw_map = {}
+
+            centers = list(
+                range(841, latest + 1, 10)
+            )
+
+            if latest not in centers:
+                centers.append(latest)
+
+        # 지정한 회차 주변의 데이터를 수집합니다.
         for center in centers:
             items = get_batch(center)
 
@@ -166,30 +196,71 @@ def load_draws():
                 if START_ROUND <= round_no <= latest:
                     draw_map[round_no] = draw
 
-        # 빠진 회차가 있는지 확인합니다.
+        # 필요한 회차가 모두 있는지 확인합니다.
         missing = [
             round_no
             for round_no in range(START_ROUND, latest + 1)
             if round_no not in draw_map
         ]
 
+        # 새 회차를 가져오지 못했다면 전체 데이터를 다시 조회합니다.
         if missing:
-            raise RuntimeError(
-                "당첨번호 일부를 가져오지 못했습니다. "
-                f"누락 회차 예시: {missing[:10]}"
+            app.logger.warning(
+                "일부 회차 누락. 전체 데이터를 다시 수집합니다: %s",
+                missing[:10],
             )
 
+            draw_map = {}
+
+            centers = list(
+                range(841, latest + 1, 10)
+            )
+
+            if latest not in centers:
+                centers.append(latest)
+
+            for center in centers:
+                items = get_batch(center)
+
+                for item in items:
+                    draw = normalize_draw(item)
+
+                    if draw is None:
+                        continue
+
+                    round_no = draw["round"]
+
+                    if START_ROUND <= round_no <= latest:
+                        draw_map[round_no] = draw
+
+            # 전체 재수집 후에도 누락이 있으면 오류를 표시합니다.
+            missing = [
+                round_no
+                for round_no in range(START_ROUND, latest + 1)
+                if round_no not in draw_map
+            ]
+
+            if missing:
+                raise RuntimeError(
+                    "당첨번호 일부를 가져오지 못했습니다. "
+                    f"누락 회차 예시: {missing[:10]}"
+                )
+
+        # 최신 회차부터 내림차순으로 정렬합니다.
         draws = sorted(
             draw_map.values(),
             key=lambda draw: draw["round"],
             reverse=True,
         )
 
+        # 정상적으로 수집된 데이터만 캐시에 저장합니다.
         _cache = draws
+
         return draws
 
     except requests.RequestException as exc:
         app.logger.exception("동행복권 API 연결 오류")
+
         raise RuntimeError(
             "동행복권 API에 연결하지 못했습니다. "
             "잠시 후 다시 시도해 주세요."
