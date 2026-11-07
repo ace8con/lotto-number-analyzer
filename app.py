@@ -132,6 +132,7 @@ def normalize_draw(item):
     }
 
 
+
 def load_draws():
     global _cache
 
@@ -141,9 +142,13 @@ def load_draws():
     try:
         latest = get_latest_round()
 
-        # 836회부터 최신 회차까지 수집합니다.
-        # API 한 번에 약 10회차를 반환하므로 중심 회차를 10씩 이동합니다.
-        centers = range(841, latest + 6, 10)
+        # 836회부터 10회차 단위로 수집합니다.
+        centers = list(range(841, latest + 1, 10))
+
+        # 마지막에는 1251처럼 미래 회차를 요청하지 않고,
+        # 실제 최신 회차를 기준으로 한 번 더 조회합니다.
+        if latest not in centers:
+            centers.append(latest)
 
         draw_map = {}
 
@@ -161,7 +166,7 @@ def load_draws():
                 if START_ROUND <= round_no <= latest:
                     draw_map[round_no] = draw
 
-        # 누락된 회차가 있는지 검사합니다.
+        # 빠진 회차가 있는지 확인합니다.
         missing = [
             round_no
             for round_no in range(START_ROUND, latest + 1)
@@ -174,7 +179,6 @@ def load_draws():
                 f"누락 회차 예시: {missing[:10]}"
             )
 
-        # 최신 회차부터 내림차순으로 정렬합니다.
         draws = sorted(
             draw_map.values(),
             key=lambda draw: draw["round"],
@@ -190,6 +194,7 @@ def load_draws():
             "동행복권 API에 연결하지 못했습니다. "
             "잠시 후 다시 시도해 주세요."
         ) from exc
+
 
 
 @app.get("/")
