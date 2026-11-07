@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>로또 번호 분석</title>
+<style>
+:root { color-scheme: light; --ink:#20242b; --muted:#697386; --line:#e6e9ef; --accent:#2563eb; }
+* { box-sizing:border-box; }
+body { margin:0; background:#f5f7fb; color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+main { max-width:760px; margin:44px auto; padding:0 18px 40px; }
+.panel { background:white; border:1px solid var(--line); border-radius:18px; padding:26px; box-shadow:0 8px 30px #15213b0a; }
+h1 { margin:0 0 8px; font-size:27px; letter-spacing:-.04em; }
+.sub { color:var(--muted); margin:0 0 24px; line-height:1.6; }
+.inputs { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:9px; }
+input { width:100%; padding:13px 0; text-align:center; border:1px solid #d9deea; border-radius:12px; font-size:20px; font-weight:650; }
+button { margin-top:17px; border:0; border-radius:12px; padding:14px 18px; width:100%; background:var(--accent); color:white; font-size:16px; font-weight:650; cursor:pointer; }
+button:disabled { opacity:.55; cursor:wait; }
+.status { margin:18px 0 0; color:var(--muted); font-size:14px; line-height:1.6; }
+.results { display:none; margin-top:22px; }
+.summary { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-bottom:18px; }
+.stat { background:#f5f7fb; border-radius:12px; padding:13px 10px; text-align:center; }
+.stat strong { display:block; font-size:24px; }
+.stat span { color:var(--muted); font-size:12px; }
+h2 { font-size:17px; margin:22px 0 10px; }
+table { width:100%; border-collapse:collapse; font-size:14px; }
+th,td { padding:11px 8px; border-bottom:1px solid var(--line); text-align:left; }
+th { color:var(--muted); font-weight:600; }
+.ball { display:inline-flex; width:29px; height:29px; border-radius:50%; align-items:center; justify-content:center; background:#eef2ff; font-weight:700; margin:2px; }
+.small { color:var(--muted); font-size:12px; margin-top:16px; }
+@media(max-width:520px) { main{margin:20px auto}.panel{padding:18px}.inputs{gap:5px}input{font-size:18px}.summary{grid-template-columns:repeat(2,1fr)} }
+</style>
+</head>
+<body>
+<main>
+<section class="panel">
+<h1>로또 번호 분석</h1>
+<p class="sub">입력한 6개 번호를 역대 6/45 당첨번호와 비교합니다.</p>
+<div class="inputs" id="inputs">
+  <input type="number" min="1" max="45" aria-label="첫 번째 번호" placeholder="1">
+  <input type="number" min="1" max="45" aria-label="두 번째 번호" placeholder="2">
+  <input type="number" min="1" max="45" aria-label="세 번째 번호" placeholder="3">
+  <input type="number" min="1" max="45" aria-label="네 번째 번호" placeholder="4">
+  <input type="number" min="1" max="45" aria-label="다섯 번째 번호" placeholder="5">
+  <input type="number" min="1" max="45" aria-label="여섯 번째 번호" placeholder="6">
+</div>
+<button id="analyze">역대 당첨번호와 분석하기</button>
+<p class="status" id="status">분석 버튼을 누르면 최신 당첨 데이터를 불러옵니다.</p>
+<div class="results" id="results">
+<div class="summary">
+<div class="stat"><strong id="count3">0</strong><span>3개 일치</span></div>
+<div class="stat"><strong id="count4">0</strong><span>4개 일치</span></div>
+<div class="stat"><strong id="count5">0</strong><span>5개 일치</span></div>
+<div class="stat"><strong id="count6">0</strong><span>6개 일치</span></div>
+</div>
+<h2>3개 이상 일치한 회차</h2>
+<table><thead><tr><th>회차 / 날짜</th><th>일치 번호</th><th>보너스</th><th>개수</th></tr></thead><tbody id="rows"></tbody></table>
+<p class="small" id="note"></p>
+</div>
+</section>
+</main>
+<script>
+const button = document.getElementById("analyze");
+const statusEl = document.getElementById("status");
+button.addEventListener("click", async () => {
+  const values = [...document.querySelectorAll("#inputs input")].map(el => Number(el.value));
+  if (values.some(n => !Number.isInteger(n) || n < 1 || n > 45) || new Set(values).size !== 6) {
+    statusEl.textContent = "1부터 45 사이의 서로 다른 숫자 6개를 입력해 주세요.";
+    return;
+  }
+  button.disabled = true;
+  statusEl.textContent = "역대 당첨번호를 불러오고 분석 중입니다. 처음에는 잠시 걸릴 수 있어요.";
+  document.getElementById("results").style.display = "none";
+  try {
+    const response = await fetch("/api/draws");
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "데이터를 불러오지 못했습니다.");
+    const chosen = new Set(values);
+    const matches = payload.draws.map(draw => {
+      const hit = draw.numbers.filter(n => chosen.has(n));
+      return {...draw, hit, count: hit.length};
+    }).filter(draw => draw.count >= 3);
+    for (let count=3; count<=6; count++) {
+      document.getElementById("count"+count).textContent = matches.filter(d=>d.count===count).length;
+    }
+    document.getElementById("rows").innerHTML = matches.map(d =>
+      `<tr><td>${d.round}회<br><span style="color:#697386">${d.date || ""}</span></td>
+       <td>${d.hit.map(n=>`<span class="ball">${n}</span>`).join("")}</td>
+       <td><span class="ball">${d.bonus}</span></td><td>${d.count}개</td></tr>`
+    ).join("");
+    document.getElementById("note").textContent = `최신 ${payload.latest}회까지 확인했습니다. 보너스 번호는 일치 개수에 포함하지 않습니다.`;
+    document.getElementById("results").style.display = "block";
+    statusEl.textContent = `분석 완료: 총 ${payload.draws.length}회 데이터를 확인했습니다.`;
+  } catch (err) {
+    statusEl.textContent = err.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
