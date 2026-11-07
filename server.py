@@ -114,7 +114,7 @@ def load_draws():
             except (KeyError, TypeError, ValueError):
                 continue
 
-        center += 10
+        center += 5
         time.sleep(0.25)
 
     # 데이터가 빠진 회차가 있는지 확인합니다.
