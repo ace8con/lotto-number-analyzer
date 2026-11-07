@@ -46,7 +46,7 @@ th { color:var(--muted); font-weight:600; }
   src="{{ url_for('static', filename='brilliant-way-to-win-logo.png') }}"
   alt="Brilliant way to Win"
 >
-<p class="sub">입력한 6개 번호를 역대 6/45 당첨번호와 비교합니다.</p>
+<p class="sub">분석하고 싶은 번호 6개를 입력하세요</p>
 
 <div class="inputs" id="inputs">
   <input type="text" inputmode="numeric" maxlength="2" aria-label="첫 번째 번호">
@@ -56,8 +56,8 @@ th { color:var(--muted); font-weight:600; }
   <input type="text" inputmode="numeric" maxlength="2" aria-label="다섯 번째 번호">
   <input type="text" inputmode="numeric" maxlength="2" aria-label="여섯 번째 번호">
 </div>
-<button id="analyze">역대 당첨번호와 분석하기</button>
-<p class="status" id="status">분석 버튼을 누르면 최신 당첨 데이터를 불러옵니다.</p>
+<button id="analyze">분석하기</button>
+<p class="status" id="status">버튼을 누르면 BWW가 입력된 번호들과 역대 데이터를 비교하여 분석합니다</p>
 <div class="results" id="results">
 <div class="summary">
 <div class="stat"><strong id="count3">0</strong><span>3개 일치</span></div>
